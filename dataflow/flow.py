@@ -36,16 +36,11 @@ class BaseDataFlow(object):
         return self._provides[field]
 
 
-class Filter(object):
-    def __init__(self, flow: BaseDataFlow, fields: Union[str, Sequence[str]], fn: Callable):
+class Operation(object):
+    def __init__(self, flow: BaseDataFlow, fn: Callable):
         assert flow is not None
-        assert fields is not None
-        fields = _trans_str_seq(fields)
-        assert len(fields) >= 1
         assert callable(fn)
-
         self._flow = flow
-        self._fields = fields
         self._fn = fn
 
     def __call__(self, *args, **kwargs):
@@ -54,38 +49,39 @@ class Filter(object):
     @property
     def flow(self):
         return self._flow
+
+
+class Filter(Operation):
+    def __init__(self, flow: BaseDataFlow, fields: Union[str, Sequence[str]], fn: Callable):
+        super(Filter, self).__init__(flow, fn)
+
+        assert fields is not None
+        fields = _trans_str_seq(fields)
+        assert len(fields) >= 1
+        self._fields = fields
 
     @property
     def fields(self):
         return self._fields
 
 
-class Factory(object):
+class Factory(Operation):
     def __init__(self,
                  flow: BaseDataFlow,
                  requires: Union[str, Sequence[str]],
                  provides: Union[str, Sequence[str]],
                  fn: Callable):
-        assert flow is not None
+        super(Factory, self).__init__(flow, fn)
+
         assert requires is not None
         assert provides is not None
-        assert callable(fn)
 
         requires = _trans_str_seq(requires)
         provides = _trans_str_seq(provides)
         assert len(requires) >= 1 and len(provides) >= 1
 
-        self._flow = flow
         self._requires = requires
         self._provides = provides
-        self._fn = fn
-
-    def __call__(self, *args, **kwargs):
-        return self._fn(*args, **kwargs)
-
-    @property
-    def flow(self):
-        return self._flow
 
     @property
     def requires(self):
