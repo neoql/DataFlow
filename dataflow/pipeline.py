@@ -66,7 +66,7 @@ class SerialPipeline(Pipeline):
         if isinstance(target, str):
             return vals[target]
         else:
-            return [vals[t] for t in targets]
+            return tuple(vals[t] for t in targets)
 
     # noinspection PyMethodMayBeStatic
     def _exec_chain(self,
@@ -74,21 +74,24 @@ class SerialPipeline(Pipeline):
                     route: Sequence[Operation]) -> Dict[str, Any]:
         vals = dict(inputs)
 
+        # print(vals)
+
         for op in route:
             op = typing.cast(Union[Filter, Factory, Operation], op)
             if isinstance(op, Filter):
-                kwargs = {field: vals[field] for field in op.fields}
-                result = op(**kwargs)
+                args = [vals[field] for field in op.fields]
+                result = op(*args)
                 result = (result,) if len(op.fields) == 1 else result
                 vals.update({field: v for field, v in zip(op.fields, result)})
             elif isinstance(op, Factory):
-                kwargs = {field: vals[field] for field in op.requires}
-                result = op(**kwargs)
+                args = [vals[field] for field in op.requires]
+                result = op(*args)
                 result = (result,) if len(op.provides) == 1 else result
                 vals.update({field: v for field, v in zip(op.provides, result)})
             else:
                 raise TypeError('unknown operation.'
                                 'The current version only supports Filter and Factory')
+            # print(vals)
 
         return vals
 
@@ -133,14 +136,14 @@ class SerialPipeline(Pipeline):
     def _search_filter_route(self,
                              inputs: AbstractSet[str],
                              init: AbstractSet[str]) -> Tuple[Set[str], List[Filter]]:
-        route = []
+        route = set()
         requires = set(init)
         flow = self.flow
 
         for field in init:
             try:
                 fltr = flow.get_filter(field)
-                route += [fltr]
+                route.add(fltr)
                 requires = requires.union(flow.get_filter(field).fields)
             except KeyError:
                 pass
@@ -149,7 +152,7 @@ class SerialPipeline(Pipeline):
             if field not in inputs:
                 raise TypeError('missing inputs: {}'.format(field))
 
-        return requires, route
+        return requires, list(route)
 
     def _search_factory_route(self,
                               targets: AbstractSet[str],
