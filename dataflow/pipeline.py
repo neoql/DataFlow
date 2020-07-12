@@ -1,7 +1,7 @@
 import typing
 
 from abc import ABCMeta, abstractmethod
-from typing import Union, Mapping, Any, Sequence, List, Tuple, AbstractSet, Set, Optional, Dict, Type
+from typing import Union, Mapping, Any, Sequence, List, Tuple, AbstractSet, Set, Optional, Dict
 
 from .flow import BaseDataFlow, Filter, Factory, Operation
 from .utils import _trans_str_seq
@@ -33,7 +33,7 @@ class SerialPipeline(Pipeline):
 
         self._cache_for_route = {}
 
-    def exec(self, op: Type[Operation], inputs: Mapping[str, Any], return_dict: bool = False) -> Any:
+    def exec(self, op: Operation, inputs: Mapping[str, Any], return_dict: bool = False) -> Any:
         op = typing.cast(Union[Filter, Factory, Operation], op)
 
         op_type = type(op)

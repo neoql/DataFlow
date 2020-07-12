@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Sequence, Callable, Dict
+from typing import Union, Sequence, Callable, Dict, Any
 
 from .utils import _trans_str_seq
 
@@ -96,6 +96,8 @@ class DataFlow(BaseDataFlow):
     def __init__(self):
         super(DataFlow, self).__init__()
 
+        self._g = {}
+
     def filter(self, fields: Union[str, Sequence[str]]) -> Filter:
         return lambda fn: self.append_filter(fields, fn)
 
@@ -103,3 +105,7 @@ class DataFlow(BaseDataFlow):
                 requires: Union[str, Sequence[str]],
                 provides: Union[str, Sequence[str]]) -> Factory:
         return lambda fn: self.append_factory(requires, provides, fn)
+
+    @property
+    def g(self) -> Dict[str: Any]:
+        return self._g

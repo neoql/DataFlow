@@ -6,5 +6,6 @@ setup(
     desciption='A lightweight data stream processing framework.',
     author='Neo',
     tests_require=['pytest'],
+    extras_require=['tqdm'],
     packages=['dataflow']
 )
