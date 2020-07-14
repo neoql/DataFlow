@@ -33,7 +33,8 @@ class SerialPipeline(Pipeline):
 
         self._cache_for_route = {}
 
-    def exec(self, op: Operation, inputs: Mapping[str, Any], return_dict: bool = False) -> Any:
+    def exec(self, fn, inputs: Mapping[str, Any], return_dict: bool = False) -> Any:
+        op = self.flow.operation(fn)
         op = typing.cast(Union[Filter, Factory, Operation], op)
 
         op_type = type(op)
@@ -80,12 +81,14 @@ class SerialPipeline(Pipeline):
             op = typing.cast(Union[Filter, Factory, Operation], op)
             if isinstance(op, Filter):
                 args = [vals[field] for field in op.fields]
-                result = op(*args)
+                kwargs = {k: self.flow.g[k] for k in op.g}
+                result = op(*args, **kwargs)
                 result = (result,) if len(op.fields) == 1 else result
                 vals.update({field: v for field, v in zip(op.fields, result)})
             elif isinstance(op, Factory):
                 args = [vals[field] for field in op.requires]
-                result = op(*args)
+                kwargs = {k: self.flow.g[k] for k in op.g}
+                result = op(*args, **kwargs)
                 result = (result,) if len(op.provides) == 1 else result
                 vals.update({field: v for field, v in zip(op.provides, result)})
             else:

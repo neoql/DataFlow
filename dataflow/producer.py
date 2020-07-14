@@ -8,12 +8,6 @@ from .stream import InStream, OutStream
 from .pipeline import Pipeline, SerialPipeline
 from .flow import BaseDataFlow
 
-try:
-    # noinspection PyPackageRequirements,PyUnresolvedReferences
-    from tqdm import tqdm, tqdm_notebook
-except ImportError:
-    _none_pbar = True
-
 
 class Producer(metaclass=ABCMeta):
     @abstractmethod
@@ -36,6 +30,8 @@ class ParallelProducer(Producer):
                 pbar: str = 'none'):
         pbar = pbar.lower()
         assert pbar in {'none', 'terminal', 'notebook'}
+
+        mp.set_start_method('spawn')
 
         inq, ouq = mp.Queue(), mp.Queue()
 
@@ -62,7 +58,7 @@ class ParallelProducer(Producer):
     # noinspection PyMethodMayBeStatic
     def _read_worker(self, ins: InStream, inq: mp.Queue):
         for i, item in enumerate(ins.iter_items()):
-            inq.put((i, inq))
+            inq.put((i, item))
 
     def _produce_worker(self,
                         flow: BaseDataFlow,
@@ -72,23 +68,29 @@ class ParallelProducer(Producer):
         pipe = self._pipe_cls(flow)
 
         while True:
-            n, item = ouq.get()
+            n, item = inq.get()
             if n < 0:
                 break
             result = pipe.product(targets, item)
             out = {k: v for k, v in zip(targets, result)}
-            inq.put((n, out))
+            ouq.put((n, out))
 
     # noinspection PyMethodMayBeStatic
     def _write_worker(self, ouq: mp.Queue, ous: OutStream, keep_order: bool, pbar_tp: str):
-        if _none_pbar or pbar_tp == 'none':
+        try:
+            # noinspection PyPackageRequirements,PyUnresolvedReferences
+            from tqdm import tqdm, tqdm_notebook
+
+            if pbar_tp == 'none':
+                pbar_cls = _FakePbar
+            elif pbar_tp == 'notebook':
+                pbar_cls = tqdm_notebook
+            elif pbar_tp == 'terminal':
+                pbar_cls = tqdm
+            else:
+                raise ValueError('un-support pbar: {}'.format(pbar_tp))
+        except ImportError:
             pbar_cls = _FakePbar
-        elif pbar_tp == 'notebook':
-            pbar_cls = tqdm_notebook
-        elif pbar_tp == 'terminal':
-            pbar_cls = tqdm
-        else:
-            raise ValueError('un-support pbar: {}'.format(pbar_tp))
 
         buf = []
         offset = 0

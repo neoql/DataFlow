@@ -1,12 +1,12 @@
 import os
 
 from abc import ABCMeta, abstractmethod
-from typing import Generator, Dict, Any, Sequence, Mapping
+from typing import Iterable, Dict, Any, Sequence, Mapping
 
 
 class InStream(metaclass=ABCMeta):
     @abstractmethod
-    def iter_items(self) -> Generator[Dict[str, Any]]:
+    def iter_items(self) -> Iterable[Dict[str, Any]]:
         pass
 
 
@@ -15,8 +15,8 @@ class OutStream(metaclass=ABCMeta):
     def put_item(self, item: Dict[str, Any]):
         pass
 
-    @abstractmethod
     @property
+    @abstractmethod
     def requires(self) -> Sequence[str]:
         pass
 
@@ -37,21 +37,32 @@ class CtxCloser(Closer, metaclass=ABCMeta):
 
 class CsvReadStream(InStream, CtxCloser):
     def __init__(self, filename: str, sep: str = ','):
-        self._csv = open(filename, 'r')
+        self._filename = filename
+        self._csv = None
         self._sep = sep
-        self._cols_title = self._read_cols_title()
+        self._cols_title = None
+
+    def _open_csv(self):
+        self._csv = open(self._filename, 'r')
 
     def _read_cols_title(self):
         line = self._csv.readline().strip()
         return line.split(self._sep)
 
-    def iter_items(self) -> Generator[Dict[str, Any]]:
+    def iter_items(self) -> Iterable[Dict[str, Any]]:
+        if self._csv is None:
+            self._open_csv()
+            self._cols_title = self._read_cols_title()
+
+        self._csv.seek(0)
         for line in self._csv:
             vals = line.strip().split(self._sep)
             item = {k: v for k, v in zip(self._cols_title, vals)}
             yield item
 
     def close(self):
+        if self._csv is None:
+            return
         self._csv.close()
 
 
@@ -64,16 +75,18 @@ class CsvWriteStream(OutStream, CtxCloser):
                  max_buf_size: int = 20):
         # our name -> global name
         self._alias = alias if alias else {col: col for col in cols}
-        self._requires = cols if alias is None else [alias[col] for col in cols]
+        self._requires = cols if alias is None else [alias.get(col, col) for col in cols]
         self._cols = cols
 
         self._sep = sep
-        self._csv = self._create_csv(filename)
+        self._filename = filename
+        self._csv = None
 
         self._buf = []
         self._max_buf_size = max_buf_size
 
-        self._write_title()
+    def _open_csv(self):
+        self._csv = self._create_csv(self._filename)
 
     # noinspection PyMethodMayBeStatic
     def _create_csv(self, filename: str):
@@ -87,9 +100,13 @@ class CsvWriteStream(OutStream, CtxCloser):
         self._csv.flush()
 
     def put_item(self, item: Dict[str, Any]):
+        if self._csv is None:
+            self._open_csv()
+            self._write_title()
+
         alias = self._alias
 
-        row = [item[alias[col]] for col in self._cols]
+        row = [str(item[alias.get(col, col)]) for col in self._cols]
 
         self._buf.append('{}\n'.format(self._sep.join(row)))
         self._check_buf()
@@ -103,11 +120,17 @@ class CsvWriteStream(OutStream, CtxCloser):
         return self._requires
 
     def flush(self):
+        if self._csv is None:
+            return
+
         if len(self._buf) > 0:
             self._csv.writelines(self._buf)
             self._buf = []
         self._csv.flush()
 
     def close(self):
+        if self._csv is None:
+            return
+
         self.flush()
         self._csv.close()

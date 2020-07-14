@@ -10,22 +10,33 @@ class BaseDataFlow(object):
         self._filters: Dict[str, Filter] = {}
         self._provides: Dict[str, Factory] = {}
 
-    def append_filter(self, fields: Union[str, Sequence[str]], fn: Callable):
-        flt = Filter(self, fields, fn)
+        self._fn_op = {}
+        self._g = {}
+
+    def append_filter(self,
+                      fields: Union[str, Sequence[str]],
+                      fn: Callable,
+                      g: Union[None, str, Sequence[str]] = None):
+        flt = Filter(self, fields, fn, g)
 
         for field in flt.fields:
             self._filters[field] = flt
+
+        self._fn_op[fn] = flt
 
         return flt
 
     def append_factory(self,
                        requires: Union[str, Sequence[str]],
                        provides: Union[str, Sequence[str]],
-                       fn: Callable):
-        factory = Factory(self, requires, provides, fn)
+                       fn: Callable,
+                       g: Union[None, str, Sequence[str]] = None):
+        factory = Factory(self, requires, provides, fn, g)
 
         for field in factory.provides:
             self._provides[field] = factory
+
+        self._fn_op[fn] = factory
 
         return factory
 
@@ -35,13 +46,27 @@ class BaseDataFlow(object):
     def get_provides(self, field) -> Factory:
         return self._provides[field]
 
+    def operation(self, fn: Callable) -> Operation:
+        return self._fn_op[fn]
+
+    @property
+    def g(self) -> Dict[str: Any]:
+        return self._g
+
 
 class Operation(object):
-    def __init__(self, flow: BaseDataFlow, fn: Callable):
+    def __init__(self, flow: BaseDataFlow, fn: Callable, g: Union[None, str, Sequence[str]] = None):
         assert flow is not None
         assert callable(fn)
         self._flow = flow
         self._fn = fn
+
+        if g is None:
+            self._g = []
+        elif isinstance(g, str):
+            self._g = [g]
+        else:
+            self._g = g
 
     def __call__(self, *args, **kwargs):
         return self._fn(*args, **kwargs)
@@ -50,10 +75,18 @@ class Operation(object):
     def flow(self):
         return self._flow
 
+    @property
+    def g(self):
+        return self._g
+
 
 class Filter(Operation):
-    def __init__(self, flow: BaseDataFlow, fields: Union[str, Sequence[str]], fn: Callable):
-        super(Filter, self).__init__(flow, fn)
+    def __init__(self,
+                 flow: BaseDataFlow,
+                 fields: Union[str, Sequence[str]],
+                 fn: Callable,
+                 g: Union[None, str, Sequence[str]] = None):
+        super(Filter, self).__init__(flow, fn, g)
 
         assert fields is not None
         fields = _trans_str_seq(fields)
@@ -70,8 +103,9 @@ class Factory(Operation):
                  flow: BaseDataFlow,
                  requires: Union[str, Sequence[str]],
                  provides: Union[str, Sequence[str]],
-                 fn: Callable):
-        super(Factory, self).__init__(flow, fn)
+                 fn: Callable,
+                 g: Union[None, str, Sequence[str]] = None):
+        super(Factory, self).__init__(flow, fn, g)
 
         assert requires is not None
         assert provides is not None
@@ -96,16 +130,18 @@ class DataFlow(BaseDataFlow):
     def __init__(self):
         super(DataFlow, self).__init__()
 
-        self._g = {}
-
-    def filter(self, fields: Union[str, Sequence[str]]) -> Filter:
-        return lambda fn: self.append_filter(fields, fn)
+    def filter(self, fields: Union[str, Sequence[str]],
+               g: Union[None, str, Sequence[str]] = None) -> Callable:
+        def wrap(fn):
+            self.append_filter(fields, fn, g)
+            return fn
+        return wrap
 
     def factory(self,
                 requires: Union[str, Sequence[str]],
-                provides: Union[str, Sequence[str]]) -> Factory:
-        return lambda fn: self.append_factory(requires, provides, fn)
-
-    @property
-    def g(self) -> Dict[str: Any]:
-        return self._g
+                provides: Union[str, Sequence[str]],
+                g: Union[None, str, Sequence[str]] = None) -> Callable:
+        def wrap(fn):
+            self.append_factory(requires, provides, fn, g)
+            return fn
+        return wrap
