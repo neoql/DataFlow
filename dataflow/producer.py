@@ -31,8 +31,6 @@ class ParallelProducer(Producer):
         pbar = pbar.lower()
         assert pbar in {'none', 'terminal', 'notebook'}
 
-        mp.set_start_method('spawn')
-
         inq, ouq = mp.Queue(), mp.Queue()
 
         read_worker = mp.Process(target=self._read_worker, args=(ins, inq))

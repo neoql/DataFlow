@@ -52,9 +52,9 @@ class CsvReadStream(InStream, CtxCloser):
     def iter_items(self) -> Iterable[Dict[str, Any]]:
         if self._csv is None:
             self._open_csv()
-            self._cols_title = self._read_cols_title()
 
         self._csv.seek(0)
+        self._cols_title = self._read_cols_title()
         for line in self._csv:
             vals = line.strip().split(self._sep)
             item = {k: v for k, v in zip(self._cols_title, vals)}
@@ -64,6 +64,7 @@ class CsvReadStream(InStream, CtxCloser):
         if self._csv is None:
             return
         self._csv.close()
+        self._csv = None
 
 
 class CsvWriteStream(OutStream, CtxCloser):
@@ -134,3 +135,4 @@ class CsvWriteStream(OutStream, CtxCloser):
 
         self.flush()
         self._csv.close()
+        self._csv = None
