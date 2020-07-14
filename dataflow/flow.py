@@ -11,7 +11,7 @@ class BaseDataFlow(object):
         self._provides: Dict[str, Factory] = {}
 
         self._fn_op = {}
-        self._g = {}
+        self._const = {}
 
     def append_filter(self,
                       fields: Union[str, Sequence[str]],
@@ -50,8 +50,8 @@ class BaseDataFlow(object):
         return self._fn_op[fn]
 
     @property
-    def g(self) -> Dict[str: Any]:
-        return self._g
+    def const(self) -> Dict[str: Any]:
+        return self._const
 
 
 class Operation(object):
@@ -62,11 +62,11 @@ class Operation(object):
         self._fn = fn
 
         if g is None:
-            self._g = []
+            self._require_const = []
         elif isinstance(g, str):
-            self._g = [g]
+            self._require_const = [g]
         else:
-            self._g = g
+            self._require_const = g
 
     def __call__(self, *args, **kwargs):
         return self._fn(*args, **kwargs)
@@ -76,8 +76,8 @@ class Operation(object):
         return self._flow
 
     @property
-    def g(self):
-        return self._g
+    def require_const(self):
+        return self._require_const
 
 
 class Filter(Operation):
