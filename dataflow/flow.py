@@ -55,18 +55,21 @@ class BaseDataFlow(object):
 
 
 class Operation(object):
-    def __init__(self, flow: BaseDataFlow, fn: Callable, g: Union[None, str, Sequence[str]] = None):
+    def __init__(self,
+                 flow: BaseDataFlow,
+                 fn: Callable,
+                 require_const: Union[None, str, Sequence[str]] = None):
         assert flow is not None
         assert callable(fn)
         self._flow = flow
         self._fn = fn
 
-        if g is None:
+        if require_const is None:
             self._require_const = []
-        elif isinstance(g, str):
-            self._require_const = [g]
+        elif isinstance(require_const, str):
+            self._require_const = [require_const]
         else:
-            self._require_const = g
+            self._require_const = require_const
 
     def __call__(self, *args, **kwargs):
         return self._fn(*args, **kwargs)
@@ -85,8 +88,8 @@ class Filter(Operation):
                  flow: BaseDataFlow,
                  fields: Union[str, Sequence[str]],
                  fn: Callable,
-                 g: Union[None, str, Sequence[str]] = None):
-        super(Filter, self).__init__(flow, fn, g)
+                 require_const: Union[None, str, Sequence[str]] = None):
+        super(Filter, self).__init__(flow, fn, require_const)
 
         assert fields is not None
         fields = _trans_str_seq(fields)
@@ -104,8 +107,8 @@ class Factory(Operation):
                  requires: Union[str, Sequence[str]],
                  provides: Union[str, Sequence[str]],
                  fn: Callable,
-                 g: Union[None, str, Sequence[str]] = None):
-        super(Factory, self).__init__(flow, fn, g)
+                 require_const: Union[None, str, Sequence[str]] = None):
+        super(Factory, self).__init__(flow, fn, require_const)
 
         assert requires is not None
         assert provides is not None
@@ -131,17 +134,17 @@ class DataFlow(BaseDataFlow):
         super(DataFlow, self).__init__()
 
     def filter(self, fields: Union[str, Sequence[str]],
-               g: Union[None, str, Sequence[str]] = None) -> Callable:
+               require_const: Union[None, str, Sequence[str]] = None) -> Callable:
         def wrap(fn):
-            self.append_filter(fields, fn, g)
+            self.append_filter(fields, fn, require_const)
             return fn
         return wrap
 
     def factory(self,
                 requires: Union[str, Sequence[str]],
                 provides: Union[str, Sequence[str]],
-                g: Union[None, str, Sequence[str]] = None) -> Callable:
+                require_const: Union[None, str, Sequence[str]] = None) -> Callable:
         def wrap(fn):
-            self.append_factory(requires, provides, fn, g)
+            self.append_factory(requires, provides, fn, require_const)
             return fn
         return wrap
