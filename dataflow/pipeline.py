@@ -81,13 +81,13 @@ class SerialPipeline(Pipeline):
             op = typing.cast(Union[Filter, Factory, Operation], op)
             if isinstance(op, Filter):
                 args = [vals[field] for field in op.fields]
-                kwargs = {k: self.flow.g[k] for k in op.g}
+                kwargs = {k: self.flow.const[k] for k in op.require_const}
                 result = op(*args, **kwargs)
                 result = (result,) if len(op.fields) == 1 else result
                 vals.update({field: v for field, v in zip(op.fields, result)})
             elif isinstance(op, Factory):
                 args = [vals[field] for field in op.requires]
-                kwargs = {k: self.flow.g[k] for k in op.g}
+                kwargs = {k: self.flow.const[k] for k in op.require_const}
                 result = op(*args, **kwargs)
                 result = (result,) if len(op.provides) == 1 else result
                 vals.update({field: v for field, v in zip(op.provides, result)})
