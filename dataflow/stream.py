@@ -1,7 +1,7 @@
 import os
 
 from abc import ABCMeta, abstractmethod
-from typing import Iterable, Dict, Any, Sequence, Mapping
+from typing import Iterable, Dict, Any, Sequence, Mapping, Optional
 
 
 class InStream(metaclass=ABCMeta):
@@ -52,10 +52,10 @@ class CsvReadStream(InStream, CtxCloser):
     def iter_items(self) -> Iterable[Dict[str, Any]]:
         if self._csv is None:
             self._open_csv()
-            self._cols_title = self._read_cols_title()
 
         self._csv.seek(0)
-        for line in self._csv:
+        self._cols_title = self._read_cols_title()
+        for i, line in enumerate(self._csv):
             vals = line.strip().split(self._sep)
             item = {k: v for k, v in zip(self._cols_title, vals)}
             yield item
@@ -72,15 +72,18 @@ class CsvWriteStream(OutStream, CtxCloser):
                  cols: Sequence[str],
                  alias: Mapping[str, str] = None,
                  sep: str = ',',
+                 inc_id: Optional[str] = None,
                  max_buf_size: int = 20):
         # our name -> global name
         self._alias = alias if alias else {col: col for col in cols}
         self._requires = cols if alias is None else [alias.get(col, col) for col in cols]
         self._cols = cols
+        self._inc_id = inc_id
 
         self._sep = sep
         self._filename = filename
         self._csv = None
+        self._line_no = -1
 
         self._buf = []
         self._max_buf_size = max_buf_size
@@ -95,7 +98,11 @@ class CsvWriteStream(OutStream, CtxCloser):
         return open(filename, 'w')
 
     def _write_title(self):
-        row = self._sep.join(self._cols)
+        if self._inc_id is None:
+            cols = self._cols
+        else:
+            cols = [self._inc_id] + self._cols
+        row = self._sep.join(cols)
         self._csv.write('{}\n'.format(row))
         self._csv.flush()
 
@@ -103,10 +110,15 @@ class CsvWriteStream(OutStream, CtxCloser):
         if self._csv is None:
             self._open_csv()
             self._write_title()
+            self._line_no = 0
 
         alias = self._alias
 
         row = [str(item[alias.get(col, col)]) for col in self._cols]
+
+        self._line_no += 1
+        if self._inc_id is not None:
+            row.insert(0, str(self._line_no))
 
         self._buf.append('{}\n'.format(self._sep.join(row)))
         self._check_buf()
