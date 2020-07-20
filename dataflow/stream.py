@@ -1,4 +1,5 @@
 import os
+import re
 
 from abc import ABCMeta, abstractmethod
 from typing import Iterable, Dict, Any, Sequence, Mapping, Optional
@@ -53,13 +54,22 @@ class CsvReadStream(InStream, Closer):
         self._csv = None
         self._sep = sep
         self._cols_title = None
+        self._regex = re.compile(r'(".*"|\'.*\'|.*?)({}|\n|$)'.format(sep))
 
     def _open_csv(self):
         self._csv = open(self._filename, 'r')
 
+    def _parse_line(self, line: str):
+        cols = self._regex.findall(line)
+        assert len(cols) > 1
+
+        cols = [col for col, _ in self._regex.findall(line)[:-1]]
+
+        return cols
+
     def _read_cols_title(self):
-        line = self._csv.readline().strip()
-        return line.split(self._sep)
+        line = self._csv.readline()
+        return self._parse_line(line)
 
     def enter(self):
         assert self._csv is None
@@ -76,7 +86,7 @@ class CsvReadStream(InStream, Closer):
         self._csv.seek(0)
         self._cols_title = self._read_cols_title()
         for line in self._csv:
-            vals = line.strip().split(self._sep)
+            vals = self._parse_line(line)
             item = {k: v for k, v in zip(self._cols_title, vals)}
             yield item
 
