@@ -55,8 +55,9 @@ class ParallelProducer(Producer):
 
     # noinspection PyMethodMayBeStatic
     def _read_worker(self, ins: InStream, inq: mp.Queue):
-        for i, item in enumerate(ins.iter_items()):
-            inq.put((i, item))
+        with ins:
+            for i, item in enumerate(ins.iter_items()):
+                inq.put((i, item))
 
     def _produce_worker(self,
                         flow: BaseDataFlow,
@@ -93,7 +94,7 @@ class ParallelProducer(Producer):
         buf = []
         offset = 0
 
-        with pbar_cls() as pbar:
+        with ous, pbar_cls() as pbar:
             while True:
                 n, item = ouq.get()
                 if n < 0:
